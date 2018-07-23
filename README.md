@@ -81,7 +81,7 @@ client do also need to have a valid kerberos ticket.
 
 ## Installation
 
-*TBD! PyPi packages must be made.*
+`pip install cobra-policytool`
 
 ## Usage of CLI
 
