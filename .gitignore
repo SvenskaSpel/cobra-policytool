@@ -2,7 +2,6 @@
 *.iml
 pyenv
 *.pyc
-setup.py
 .eggs
 *.egg-info
 build

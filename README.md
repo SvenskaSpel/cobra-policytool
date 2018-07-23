@@ -42,7 +42,7 @@ be version controlled.
 metadata management system.
 
 
-###Non-Goals
+### Non-Goals
 
 * Handle the security within the Hadoop environemnt. We want to rely on
 Apache Atlas, Atlas Ranger and other tools within the Hadoop ecosystem.
