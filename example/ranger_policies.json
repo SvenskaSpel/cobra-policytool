@@ -1,0 +1,133 @@
+[{
+  "command": "apply_tag_row_rule",
+  "filters": [{
+    "groups": [],
+    "users": ["etl${user_suffix}"],
+    "tagFilterExprs": [{
+      "tags": ["PII_table"],
+      "filterExpr": "exists (select 1 from whitelist whitelist where whitelist.customer_id=${table}.customer_id)"
+    },{
+      "tags": ["PII_table", "end_date_table"],
+      "filterExpr": "datediff(current_date, ${table}.${end_date_column}) > 365"
+    }]
+  }],
+  "policy": {
+    "service": "${installation}_hive",
+    "name": "${project_name}_${environment}_${schema}_${table}",
+    "description": "Whitelist row filtering policy for Service: ${schema}.${table} in ${environment}.",
+    "policyType": 2,
+    "isEnabled": true,
+    "resources": {
+      "database": {
+        "isExcludes": false,
+        "values": ["${schema}_${environment}"],
+        "isRecursive": false
+      },
+      "table": {
+        "isExcludes": false,
+        "values": ["${table}"],
+        "isRecursive": false
+      }
+    },
+    "isAuditEnabled": true
+  }
+},{
+  "command": "apply_rule",
+  "policy": {
+    "service": "${installation}_tag",
+    "name": "load_etl_mask_pii_data",
+    "policyType": 1,
+    "description": "Mask all column data tagged PII",
+    "isAuditEnabled": true,
+    "resources": {
+      "tag": {
+        "values": ["PII"],
+        "isExcludes": false,
+        "isRecursive": false
+      }
+    },
+    "dataMaskPolicyItems": [{
+      "dataMaskInfo": {
+        "dataMaskType": "hive:CUSTOM",
+        "conditionExpr": "udf.anonymize({col})",
+        "valueExpr": "udf.anonymize({col})"
+      },
+      "accesses": [{
+        "type": "hive:select",
+        "isAllowed": true
+      }],
+      "users": ["pii_etl${user_suffix}"],
+      "groups": [],
+      "conditions": [],
+      "delegateAdmin": false
+    }],
+    "isEnabled": true
+  }
+},{
+  "command": "apply_rule",
+  "policy": {
+    "service": "${installation}_hive",
+    "name": "${project_name}_${environment}_anonymize_read",
+    "policyType": 0,
+    "description": "Access to schemas in data_warehouse_out.",
+    "isAuditEnabled": true,
+    "resources": {
+      "database": {
+        "values": ["data_warehouse_out_${environment}"],
+        "isExcludes": false,
+        "isRecursive": false
+      },
+      "column": {
+        "values": ["*"],
+        "isExcludes": false,
+        "isRecursive": false
+      },
+      "table": {
+        "values": ["*"],
+        "isExcludes": false,
+        "isRecursive": false
+      }
+    },
+    "policyItems": [{
+      "accesses": [{
+        "type": "select",
+        "isAllowed": true
+      },{
+        "type": "read",
+        "isAllowed": true
+      }],
+      "users": ["pii_etl${user_suffix}"],
+      "groups": [],
+      "conditions": [],
+      "delegateAdmin": false
+    },{
+      "accesses": [{
+        "type": "select",
+        "isAllowed": true
+      }, {
+        "type": "update",
+        "isAllowed": true
+      }, {
+        "type": "create",
+        "isAllowed": true
+      }, {
+        "type": "drop",
+        "isAllowed": true
+      }, {
+        "type": "alter",
+        "isAllowed": true
+      }, {
+        "type": "read",
+        "isAllowed": true
+      }, {
+        "type": "write",
+        "isAllowed": true
+      }],
+      "users": ["etl${user_suffix}"],
+      "groups": ["ANALYTIC_USERS"],
+      "conditions": [],
+      "delegateAdmin": false
+    }],
+    "isEnabled": true
+  }
+}]

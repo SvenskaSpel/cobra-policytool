@@ -1,0 +1,7 @@
+schema;table;tags
+data_warehouse_out;country_d;
+data_warehouse_out;customer_d;PII_table,SensitiveInformation_table
+data_warehouse_out;date_d;
+data_warehouse_out;geography_d;
+data_warehouse_out;revenue_period_f;PII_table
+data_warehouse_out;sales_f;PII_table

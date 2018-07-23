@@ -1,0 +1,14 @@
+{ "environments": [{
+    "name": "prod",
+    "atlas_api_url": "http://atlas.host:21000/api/atlas",
+    "ranger_api_url": "http://ranger.host:6080",
+    "variables": [
+      { "name": "user_suffix",
+        "value": ""},
+      { "name": "installation",
+        "value": "prod"}
+    ],
+    "retries": 3
+  }]
+
+}

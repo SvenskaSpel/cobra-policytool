@@ -1,0 +1,12 @@
+schema;table;attribute;tags
+data_warehouse_out;customer_d;customer_key;PII
+data_warehouse_out;customer_d;customer_id;PII
+data_warehouse_out;customer_d;date_of_birth;PII
+data_warehouse_out;customer_d;postal_code;PII
+data_warehouse_out;customer_d;postal_city;PII
+data_warehouse_out;revenue_period_f;customer_key;PII
+data_warehouse_out;revenue_period_f;customer_id;PII
+data_warehouse_out;sales_f;customer_id;PII
+data_warehouse_out;sales_f;customer_key;PII
+
+
