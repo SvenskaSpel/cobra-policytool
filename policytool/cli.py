@@ -18,13 +18,6 @@ from collections import defaultdict
 SLEEP_ON_RETRY_SECONDS = 60
 
 
-def atlas_server_from_environment(env):
-    if env in ['prod']:
-        return 'http://hdp01.vby.svenskaspel.se:21000/api/atlas'
-    else:
-        return 'http://thdp01.test.svenskaspel.se:21000/api/atlas'
-
-
 def _missing_files(files):
     missing = []
     for f in files:
@@ -38,13 +31,7 @@ def cli():
     pass
 
 
-@cli.command("tags_to_atlas", help="sync tags from source files to Atlas.")
-@click.option('-s', '--srcdir', help='The schema for the generated table', default='src/main/tags')
-@click.option('-e', '--environment', help='Destination environment', required=True)
-@click.option('-r', '--retry', help='Retry on fail. Number of retries is controlled by \'retries\' in config.', count=True)
-@click.option('-v', '--verbose', help='Provide verbose output', count=True)
-@click.option('-c', '--config', help='Config file', type=click.Path(exists=True))
-def tags_to_atlas(srcdir, environment, retry, verbose, config):
+def _tags_to_atlas(srcdir, environment, retry, verbose, config):
     conf = JSONPropertiesFile(config).get(environment)
     table_file = os.path.join(srcdir, 'table_tags.csv')
     column_file = os.path.join(srcdir, 'column_tags.csv')
@@ -71,17 +58,20 @@ def tags_to_atlas(srcdir, environment, retry, verbose, config):
         if verbose > 0:
             tagsync.print_sync_worklog(log)
     except (tagsync.SyncError, IOError) as e:
-        raise ClickException(e.message + " Tag sync not complete, fix errors and re-run.")
+        raise ClickException(e.message + "\nTag sync not complete, fix errors and re-run.")
 
 
-@cli.command("rules_to_ranger", help="Synchronize rules from a file to Ranger")
+@cli.command("tags_to_atlas", help="sync tags from source files to Atlas.")
 @click.option('-s', '--srcdir', help='The schema for the generated table', default='src/main/tags')
-@click.option('-p', '--project-name', help='Project to create rules for', required=True)
-@click.option('-e', '--environment', help='Destination environment', default='dev')
-@click.option('-c', '--config', help='Config file', type=click.Path(exists=True))
+@click.option('-e', '--environment', help='Destination environment', required=True)
+@click.option('-r', '--retry', help='Retry on fail. Number of retries is controlled by \'retries\' in config.', count=True)
 @click.option('-v', '--verbose', help='Provide verbose output', count=True)
-@click.option('--dryrun', help='Show commands, but do not update.', is_flag=True)
-def rules_to_ranger_cmd(srcdir, project_name, environment, config, verbose, dryrun):
+@click.option('-c', '--config', help='Config file', type=click.Path(exists=True))
+def tags_to_atlas(srcdir, environment, retry, verbose, config):
+    _tags_to_atlas(srcdir, environment, retry, verbose, config)
+
+
+def _rules_to_ranger_cmd(srcdir, project_name, environment, config, verbose, dryrun):
     conf = JSONPropertiesFile(config).get(environment)
     table_file = os.path.join(srcdir, 'table_tags.csv')
     column_file = os.path.join(srcdir, 'column_tags.csv')
@@ -114,7 +104,7 @@ def rules_to_ranger_cmd(srcdir, project_name, environment, config, verbose, dryr
 
     # Add variables from config to context_dict.
     for var in conf.get('variables', []):
-        context_dict[var['name']]=var['value']
+        context_dict[var['name']] = var['value']
 
     context = Context(context_dict)
 
@@ -125,12 +115,18 @@ def rules_to_ranger_cmd(srcdir, project_name, environment, config, verbose, dryr
     sync_client.sync_policies([project_name + '_' + environment, 'load_etl_'], policies)
 
 
-@cli.command("audit_tags", help="A dry run providing audit information about tags. \
-It includes differences between source files and Atlas.")
+@cli.command("rules_to_ranger", help="Synchronize rules from a file to Ranger")
 @click.option('-s', '--srcdir', help='The schema for the generated table', default='src/main/tags')
-@click.option('-e', '--environment', help='Destination environment', required=True)
+@click.option('-p', '--project-name', help='Project to create rules for', required=True)
+@click.option('-e', '--environment', help='Destination environment', default='dev')
 @click.option('-c', '--config', help='Config file', type=click.Path(exists=True))
-def audit(srcdir, environment, config):
+@click.option('-v', '--verbose', help='Provide verbose output', count=True)
+@click.option('--dryrun', help='Show commands, but do not update.', is_flag=True)
+def rules_to_ranger_cmd(srcdir, project_name, environment, config, verbose, dryrun):
+    _rules_to_ranger_cmd(srcdir, project_name, environment, config, verbose, dryrun)
+
+
+def _audit(srcdir, environment, config):
     conf = JSONPropertiesFile(config).get(environment)
     table_file = os.path.join(srcdir, 'table_tags.csv')
     column_file = os.path.join(srcdir, 'column_tags.csv')
@@ -200,6 +196,15 @@ def audit(srcdir, environment, config):
 
     except IOError as e:
         raise ClickException(e.message)
+
+
+@cli.command("audit_tags", help="A dry run providing audit information about tags. \
+It includes differences between source files and Atlas.")
+@click.option('-s', '--srcdir', help='The schema for the generated table', default='src/main/tags')
+@click.option('-e', '--environment', help='Destination environment', required=True)
+@click.option('-c', '--config', help='Config file', type=click.Path(exists=True))
+def audit(srcdir, environment, config):
+    _audit(srcdir, environment, config)
 
 
 if __name__ == '__main__':

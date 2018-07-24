@@ -136,7 +136,7 @@ class RangerSync:
                 click.secho("Update {}.{}".format(policy['service'], policy['name']), file=sys.stderr, fg='green')
                 print(policy)
             response = self.ranger_client.apply_policy(policy, self.verbose, self.dryrun)
-            if self.verbose > 0:
+            if self.verbose > 1:
                 print(response)
 
 

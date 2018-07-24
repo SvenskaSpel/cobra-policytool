@@ -22,7 +22,7 @@ def add_environment(data, environment):
 
 def print_sync_worklog(log):
     for k in log:
-        print(k+": "+", ".join(log[k]))
+        print(k+": "+"\n\t".join(log[k]))
 
 
 def tags_from_src(src_data):

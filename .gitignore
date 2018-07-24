@@ -5,4 +5,5 @@ pyenv
 .eggs
 *.egg-info
 build
+dist
 *~

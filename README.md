@@ -44,7 +44,7 @@ metadata management system.
 
 ### Non-Goals
 
-* Handle the security within the Hadoop environemnt. We want to rely on
+* Handle the security within the Hadoop environment. We rely on
 Apache Atlas, Atlas Ranger and other tools within the Hadoop ecosystem.
 
 
@@ -57,27 +57,28 @@ please review our contributor [guidelines](CONTRIBUTING.md).
 ## License
 
 This project is released as open source according to the terms laid
-out in the [LICENSE](LICENSE).
+out in the [LICENSE](LICENSE.txt).
 
 
 ## Supported features
 
 ### Tagging of resources
-* Sync of table and column tags from metadata files to Atlas
-* Audit to show differences between metadata and Atlas
-* New tag definitions are automatically added to Atlas on sync
-* Verbose output to provide changes done
-* Authentication using kerberos ticket
+* Sync of table and column tags from metadata files to Atlas.
+* Audit to show differences between metadata and Atlas.
+* New tag definitions are automatically added to Atlas on sync.
+* Verbose output to provide changes done.
+* Authentication using kerberos ticket.
 
 ### Creating policies
-* Sync policies from metadata file to Ranger
-* Expand tag based row filtering rules to Hive row based filtering
+* Sync policies from metadata file to Ranger.
+* Expand tag based row filtering rules to Hive row based filtering.
 
 ## Requirements
-* Atlas, Ranger, and Hive installed and working
+* Atlas, Ranger, and Hive installed and working.
 * Kerberos turned on on the Hadoop cluster, including Atlas and Ranger. Your 
 client do also need to have a valid kerberos ticket.
-* Python 2.7
+* Python 2.7.
+* We have successfully used it on MS Windows, MacOS and Linux.
 
 ## Installation
 

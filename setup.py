@@ -8,7 +8,7 @@ with open("README.md", "r") as fh:
 
 setup(
     name="cobra-policytool",
-    version="1.0.0",
+    version="1.0.1",
     author="Magnus Runesson",
     author_email="Magnus.Runesson@svenskaspel.se",
     description="Tool for manage Hadoop access using Apache Atlas and Ranger.",

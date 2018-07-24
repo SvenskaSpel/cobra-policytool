@@ -1,5 +1,6 @@
 import requests
 
+
 class Client:
 
     def __init__(self, url_prefix, auth=None):
@@ -10,10 +11,8 @@ class Client:
         self.url_prefix = url_prefix # http://atlas.host.my.org:21000/api/atlas/
         self.auth=auth
 
-
     def _search(self, query):
         return requests.post(self.url_prefix + "/v2/search/basic", json=query, auth=self.auth)
-
 
     def _create_qualifiedname_query(self, type_name, *values):
         """
@@ -23,28 +22,26 @@ class Client:
         :return: Query to be sent to Atlas API.
         """
         query = {}
-        query['typeName']=type_name
-        query['excludeDeletedEntities']=True
-        query['limit']=10000
-        entityFilter={}
-        entityFilter['condition']='AND'
-        criterion=[]
-        n=0
+        query['typeName'] = type_name
+        query['excludeDeletedEntities'] = True
+        query['limit'] = 10000
+        entity_filter = {}
+        entity_filter['condition']='AND'
+        criterion = []
+        n = 0
         for v in values:
-            criteria={}
+            criteria = {}
             criteria['attributeName'] = 'qualifiedName'
             criteria['operator'] = 'STARTSWITH' if n==0 else 'CONTAINS'
             criteria['attributeValue'] = v
-            n+=1
+            n += 1
             criterion.append(criteria)
-        entityFilter['criterion']=criterion
-        query['entityFilters']=entityFilter
+        entity_filter['criterion'] = criterion
+        query['entityFilters'] = entity_filter
         return query
 
-
-    def _filter_entities_on_qualifiedName(self, entities, qualtifiedName):
-        return [e for e in entities if e['attributes']['qualifiedName'].startswith(qualtifiedName)]
-
+    def _filter_entities_on_qualifiedName(self, entities, qualtified_name):
+        return [e for e in entities if e['attributes']['qualifiedName'].startswith(qualtified_name)]
 
     def _create_qualifiedName_prefix(self, *values):
         return ".".join(values)+"."
@@ -76,9 +73,9 @@ class Client:
         query = self._create_qualifiedname_query(type, *values)
         response = self._search(query)
         if response.status_code == 200:
-            json_resopnse = response.json()
-            if json_resopnse.has_key('entities'):
-                return self._filter_entities_on_qualifiedName(json_resopnse['entities'], self._create_qualifiedName_prefix(*values))
+            json_response = response.json()
+            if json_response.has_key('entities'):
+                return self._filter_entities_on_qualifiedName(json_response['entities'], self._create_qualifiedName_prefix(*values))
             else:
                 return []
         else:
@@ -102,7 +99,6 @@ class Client:
         """
         return self._get_qualified_name("hive_table", db)
 
-
     def get_columns(self, db, table):
         """
         Get all columns for a table.
@@ -123,7 +119,6 @@ class Client:
         """
         return self._get_qualified_name("hive_column", db, table)
 
-
     def add_tags_on_guid(self, guid, tags):
         """
         Add Tags to an entity.
@@ -138,7 +133,6 @@ class Client:
         if response.status_code != 204:
             raise AtlasError(response.content, response.status_code)
 
-
     def delete_tags_on_guid(self, guid, tags):
         """
         Add Tags to an entity.
@@ -152,7 +146,6 @@ class Client:
                 failed_tags.append(t)
         if len(failed_tags) != 0:
             raise AtlasError("Failed to delete tags " + repr(tags) + " on " + guid)
-
 
     def known_tags(self):
         """
@@ -178,10 +171,10 @@ class Client:
             raise AtlasError(response.content, response.status_code)
 
 
-
 class AtlasError(Exception):
     def __init__(self, message, http_code=None):
         self.message = message
         self.http_code = http_code
+
     def __str__(self):
         return "HTTP code: " + repr(self.http_code) + " Message: " + repr(self.message)
