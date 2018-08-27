@@ -28,9 +28,13 @@ rules you must be admin, unfortunately.
 Cobra-policytool is idempotent, that means you can rerun it as much as
 you want, the result will not change if on have not changed the input.
 
+There is an introduction how to use cobra-policytool tool on 
+[Medium](https://medium.com/@mrunesson/managing-data-access-policies-in-hive-bba60943b7b4)
+
 A presentation about how Cobra-policytool is used within Svenska Spel can
 be found at
 [Slideshare](https://www.slideshare.net/MagnusRunesson/practical-experiences-using-atlas-and-ranger-to-implement-gdpr-dataworkssummit-2018).
+and [Youtube](https://www.youtube.com/watch?v=MlDQqj5aYOg)
 
 ### Goals
 
