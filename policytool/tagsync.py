@@ -2,6 +2,7 @@ from __future__ import print_function
 import csv
 import time
 from atlas import AtlasError
+from hive import HiveError
 
 
 def strip_qualified_name(qualified_name):
@@ -63,7 +64,7 @@ def diff_table_tags(src_data_tables, atlas_tables):
     :param atlas_tables: Atlas tables retrieved with Sync.tables_from_atlas()
     :return: Dict of tables where value is (tags only in src, tags only in atlas)
     """
-    result={}
+    result = {}
     for s in src_data_tables:
         expected_tags = set(s['tags'].split(','))-set([''])
         table_name = s['schema']+"."+s['table']
@@ -97,6 +98,10 @@ def diff_column_tags(src_data_columns, atlas_columns):
     return result
 
 
+def _tags_as_set(csv_line):
+    return set(csv_line['tags'].split(',')) - {''}
+
+
 class Sync:
     """
     This class is not thread safe.
@@ -104,15 +109,16 @@ class Sync:
 
     worklog = {}
 
-    def __init__(self, atlas_client, retries=0, retry_delay=60):
+    def __init__(self, atlas_client, retries=0, retry_delay=60, hive_client=None):
         self.atlas_client = atlas_client
+        self.hive_client = hive_client
         self.retries = retries
         self.retry_delay = retry_delay
 
     def sync_table_tags(self, src_table_tags):
         """
         :param src_table_tags: Array of dicts with keys (schema, table, tags (comma separated in string))
-        :return: Dictionary with actions as keys and metadata as value.
+        :return: Dictionary with actions as keys and metadata as value, used for logging.
         """
         self.worklog = {}
         run = 0
@@ -128,38 +134,30 @@ class Sync:
     def _sync_table_tags(self, src_table_tags, run):
         # Verify Atlas knows about all tags used.
 
-        src_tags = tags_from_src(src_table_tags)
-        atlas_tags = self.tags_from_atlas()
-        missing_atlas_tags = src_tags-atlas_tags
-        if len(missing_atlas_tags) != 0:
-            self.atlas_client.add_tag_definitions(missing_atlas_tags)
-            self.worklog['run:%s New tags added to Atlas from tables tag file' % run] = missing_atlas_tags
+        self.ensure_tags_in_atlas(src_table_tags)
 
         # Get all tables for schemas from atlas. Verify all exists. (both directions)
         schemas = schemas_from_src(src_table_tags)
         src_tables = tables_from_src(src_table_tags)
-        atlas_tables = self.tables_from_atlas(schemas)
+        atlas_tables = self.get_tables_for_schema_from_atlas(schemas)
         if len(src_tables-set(atlas_tables.keys())) != 0:
             raise SyncError("run:%s The table(s) %s does not exist in Atlas." % (run, ", ".join(src_tables-set(atlas_tables.keys()))))
         if len(set(atlas_tables.keys())-src_tables) != 0:
             self.worklog['run:%s tables not existing in tags file' % (run)] = set(atlas_tables.keys())-src_tables
             
-        # Remove tables that does not exists in Atlas
         # For each table, sync tags
         for s in src_table_tags:
-            expected_tags = set(s['tags'].split(','))-set([''])
+            expected_tags = _tags_as_set(s)
             table_name = s['schema']+"."+s['table']
-            # If table does not exists in Atlas do not apply
-            if table_name in src_tables:
-                atlas_table = atlas_tables[table_name]
-                tags_to_add = expected_tags-atlas_table['tags']
-                tags_to_delete = atlas_table['tags']-expected_tags
-                if len(tags_to_add) != 0:
-                    self.atlas_client.add_tags_on_guid(atlas_table['guid'], list(tags_to_add))
-                    self.worklog['run:%s %s added tag' % (run, table_name)] = tags_to_add
-                if len(tags_to_delete) != 0:
-                    self.atlas_client.delete_tags_on_guid(atlas_table['guid'], list(tags_to_delete))
-                    self.worklog['run:%s %s deleted tag' % (run, table_name)] = tags_to_delete
+            atlas_table = atlas_tables[table_name]
+            tags_to_add = expected_tags-atlas_table['tags']
+            tags_to_delete = atlas_table['tags']-expected_tags
+            if len(tags_to_add) != 0:
+                self.atlas_client.add_tags_on_guid(atlas_table['guid'], list(tags_to_add))
+                self.worklog['run:%s %s added tag' % (run, table_name)] = tags_to_add
+            if len(tags_to_delete) != 0:
+                self.atlas_client.delete_tags_on_guid(atlas_table['guid'], list(tags_to_delete))
+                self.worklog['run:%s %s deleted tag' % (run, table_name)] = tags_to_delete
         return self.worklog
 
     def sync_column_tags(self, src_column_tags):
@@ -181,20 +179,15 @@ class Sync:
     def _sync_column_tags(self, src_column_tags, run):
         """
         :param src_column_tags: Array of dicts with keys (schema, table, attribute, tags (comma separated in string))
-        :return: Dictionary with actions as keys and metadata as value.
+        :return: Dictionary with actions as keys and metadata as value, used for logging.
         """
-        # Verify Atlas knows about all tags used.
-        src_tags = tags_from_src(src_column_tags)
-        atlas_tags = self.tags_from_atlas()
-        missing_atlas_tags = src_tags-atlas_tags
-        if len(missing_atlas_tags) != 0:
-            self.atlas_client.add_tag_definitions(missing_atlas_tags)
-            self.worklog['run:%s New tags added to Atlas from columns tag file' % run] = missing_atlas_tags
+
+        self.ensure_tags_in_atlas(src_column_tags)
 
         # Get all columns for tables from atlas. Verify all exists. (both directions)
         src_tables = tables_from_src(src_column_tags)
         src_columns = columns_from_src(src_column_tags)
-        atlas_columns = self.columns_from_atlas(src_tables)
+        atlas_columns = self.get_columns_for_tables_from_atlas(src_tables)
         if len(src_columns-set(atlas_columns.keys())) != 0:
             raise SyncError("run:%s The column(s) %s does not exist in Atlas." % (run, ", ".join(src_columns-set(atlas_columns.keys()))))
         if len(set(atlas_columns.keys())-src_columns) != 0:
@@ -203,7 +196,7 @@ class Sync:
         # Remove columns that does not exists in Atlas
         # For each column, sync tags
         for s in src_column_tags:
-            expected_tags = set(s['tags'].split(','))-set([''])
+            expected_tags = _tags_as_set(s)
             column_name = s['schema']+"."+s['table']+"."+s['attribute']
             # If column does not exists in Atlas do not apply
             if column_name in src_columns:
@@ -221,7 +214,15 @@ class Sync:
     def tags_from_atlas(self):
         return set([t['name'] for t in self.atlas_client.known_tags()])
 
-    def tables_from_atlas(self, schemas):
+    def ensure_tags_in_atlas(self, csv_dict):
+        src_tags = tags_from_src(csv_dict)
+        atlas_tags = self.tags_from_atlas()
+        missing_atlas_tags = src_tags - atlas_tags
+        if len(missing_atlas_tags) != 0:
+            self.atlas_client.add_tag_definitions(missing_atlas_tags)
+            self.worklog['New tags added to Atlas'] = missing_atlas_tags
+
+    def get_tables_for_schema_from_atlas(self, schemas):
         """
         :param schemas:
         :return: {'schema.table': {'guid':, 'tags': []}, ...
@@ -234,7 +235,7 @@ class Sync:
                     'tags': set(table['classificationNames'])}
         return result
 
-    def columns_from_atlas(self, src_tables):
+    def get_columns_for_tables_from_atlas(self, src_tables):
         """
         :param src_tables: ['schema.table1', 'schema.table2' ...]:
         :return: {'schema.table.column': {'guid':, 'tags': []}, ...
@@ -247,6 +248,51 @@ class Sync:
                     'guid': table['guid'],
                     'tags': set(table['classificationNames'])}
         return result
+
+    def _sync_tags_for_one_tables_storage(self, schema, table, expected_tags):
+        """
+        Ensure the storage directory for table in schema has the same tags as the table.
+        Location for storage is looked up in hive server.
+        :param schema: Name of schema.
+        :param table: Name of table.
+        :param expected_tags: List of strings with expected tags.
+        :return: Dictionary with actions as keys and metadata as value, used for logging.
+        """
+        storage_url = self.hive_client.get_location(schema, table)
+        guid = self.atlas_client.add_hdfs_path(storage_url)
+
+        tags_on_storage = self.atlas_client.get_tags_on_guid(guid)
+        tags_to_add = expected_tags-tags_on_storage
+        tags_to_delete = tags_on_storage-expected_tags
+        if len(tags_to_add) != 0:
+            self.atlas_client.add_tags_on_guid(guid, list(tags_to_add))
+            self.worklog['%s added tag'.format(storage_url)] = tags_to_add
+        if len(tags_to_delete) != 0:
+            self.atlas_client.delete_tags_on_guid(guid, list(tags_to_delete))
+            self.worklog['%s deleted tag'.format(storage_url)] = tags_to_delete
+        return self.worklog
+
+    def sync_table_storage_tags(self, src_table_tags):
+        """
+        Ensure the storage directories has the same tags as specified for the table in src_table_tags.
+        Location for storage is looked up in hive server.
+        :param src_table_tags: Array of dicts with keys (schema, table, tags (comma separated in string))
+        :return: Dictionary with actions as keys and metadata as value, used for logging.
+        """
+        self.worklog = {}
+        run = 0
+        while True:
+            try:
+                run += 1
+                self.ensure_tags_in_atlas(src_table_tags)
+                for s in src_table_tags:
+                    self.worklog.update(
+                        self._sync_tags_for_one_tables_storage(s['schema'], s['table'], _tags_as_set(s)))
+                return self.worklog
+            except (SyncError, IOError, AtlasError, HiveError) as e:
+                if run > self.retries:
+                    raise e
+                time.sleep(self.retry_delay)
 
 
 class SyncError(Exception):

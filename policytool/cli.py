@@ -4,6 +4,7 @@ import click
 from click import ClickException
 from requests_kerberos import HTTPKerberosAuth
 import atlas
+import hive
 import tagsync
 import ranger
 import rangersync
@@ -31,19 +32,22 @@ def cli():
     pass
 
 
-def _tags_to_atlas(srcdir, environment, retry, verbose, config):
+def _tags_to_atlas(srcdir, environment, hdfs, retry, verbose, config):
     conf = JSONPropertiesFile(config).get(environment)
     table_file = os.path.join(srcdir, 'table_tags.csv')
     column_file = os.path.join(srcdir, 'column_tags.csv')
     missing_files = _missing_files([table_file, column_file])
     if len(missing_files) != 0:
-        print("Following files are missing: " ", ".join(missing_files))
+        print("Following files are missing: " + ", ".join(missing_files))
         print("Will not run, exiting!")
         return 0
 
     auth = HTTPKerberosAuth()
     atlas_client = atlas.Client(conf['atlas_api_url'], auth=auth)
-    sync_client = tagsync.Sync(atlas_client, retry*conf.get('retries', 1), SLEEP_ON_RETRY_SECONDS)
+    hive_client = None
+    if hdfs:
+        hive_client = hive.Client(conf['hive_server'], conf['hive_port'])
+    sync_client = tagsync.Sync(atlas_client, retry*conf.get('retries', 1), SLEEP_ON_RETRY_SECONDS, hive_client)
 
     try:
         if verbose > 0:
@@ -57,6 +61,12 @@ def _tags_to_atlas(srcdir, environment, retry, verbose, config):
         log = sync_client.sync_column_tags(tagsync.add_environment(src_data_column, environment))
         if verbose > 0:
             tagsync.print_sync_worklog(log)
+        if hdfs:
+            if verbose > 0:
+                print("Syncing tags for table storage.")
+            log = sync_client.sync_table_storage_tags(tagsync.add_environment(src_data_table, environment))
+            if verbose > 0:
+                tagsync.print_sync_worklog(log)
     except (tagsync.SyncError, IOError) as e:
         raise ClickException(e.message + "\nTag sync not complete, fix errors and re-run.")
 
@@ -64,11 +74,12 @@ def _tags_to_atlas(srcdir, environment, retry, verbose, config):
 @cli.command("tags_to_atlas", help="sync tags from source files to Atlas.")
 @click.option('-s', '--srcdir', help='The schema for the generated table', default='src/main/tags')
 @click.option('-e', '--environment', help='Destination environment', required=True)
+@click.option('--hdfs/--no-hdfs', help='Set tags on hive tables corresponding hdfs directory.', default=False)
 @click.option('-r', '--retry', help='Retry on fail. Number of retries is controlled by \'retries\' in config.', count=True)
 @click.option('-v', '--verbose', help='Provide verbose output', count=True)
 @click.option('-c', '--config', help='Config file', type=click.Path(exists=True))
-def tags_to_atlas(srcdir, environment, retry, verbose, config):
-    _tags_to_atlas(srcdir, environment, retry, verbose, config)
+def tags_to_atlas(srcdir, environment, hdfs, retry, verbose, config):
+    _tags_to_atlas(srcdir, environment, hdfs, retry, verbose, config)
 
 
 def _rules_to_ranger_cmd(srcdir, project_name, environment, config, verbose, dryrun):
@@ -153,9 +164,9 @@ def _audit(srcdir, environment, config):
             print("Tag(s) missing in Atlas: " + ", ".join(diff_tags).decode("utf-8"))
 
         schemas = tagsync.schemas_from_src(src_data_table)
-        full_tables_atlas = sync_client.tables_from_atlas(schemas)
+        full_tables_atlas = sync_client.get_tables_for_schema_from_atlas(schemas)
         tables = tagsync.tables_from_src(src_data_column)
-        full_columns_atlas = sync_client.columns_from_atlas(tables)
+        full_columns_atlas = sync_client.get_columns_for_tables_from_atlas(tables)
 
         # Tables only in Atlas
         tables_atlas = set(full_tables_atlas.keys())

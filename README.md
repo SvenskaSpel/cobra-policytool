@@ -68,6 +68,7 @@ out in the [LICENSE](LICENSE.txt).
 
 ### Tagging of resources
 * Sync of table and column tags from metadata files to Atlas.
+* Keep tags between hive corresponding directory on hdfs in sync (use option --hdfs)
 * Audit to show differences between metadata and Atlas.
 * New tag definitions are automatically added to Atlas on sync.
 * Verbose output to provide changes done.
@@ -148,7 +149,7 @@ We recommend to read the [convention document](docs/Conventions.md) and
 
 
 ---
-Copyright 2015 AB SvenskaSpel
+Copyright 2018 AB SvenskaSpel
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.

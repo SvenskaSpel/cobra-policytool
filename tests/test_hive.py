@@ -1,0 +1,44 @@
+import unittest
+from mock import MagicMock
+
+import hive
+
+
+class _CursorMock:
+
+    def __init__(self, execute=lambda q: "", fetchall=lambda: []):
+        self.execute_mock=execute
+        self.fetchall_mock=fetchall
+
+    def execute(self, query):
+        self.execute_mock(query)
+
+    def fetchall(self):
+        return self.fetchall_mock()
+
+
+class TestHiveClient(unittest.TestCase):
+
+    def test_get_location(self):
+        result_from_db=[("foo", "bar", None), ("Location:      ", "hdfs://sys/path", None)]
+        to_test = hive.Client("dummyhost")
+        connection_dummy = type('', (), {})()
+        connection_dummy.cursor = lambda: _CursorMock(fetchall=lambda: result_from_db)
+        to_test._connection = MagicMock(return_value=connection_dummy)
+
+        result = to_test.get_location("db", "table")
+        self.assertEqual(result, "hdfs://sys/path")
+
+    def test_get_location_with_insecure_db(self):
+        to_test = hive.Client("dummyhost")
+
+        with self.assertRaises(hive.HiveError) as e:
+            to_test.get_location("db; drop", "table")
+        self.assertEqual('"db; drop" includes non allowed characters', e.exception.message)
+
+    def test_get_location_with_insecure_db(self):
+        to_test = hive.Client("dummyhost")
+
+        with self.assertRaises(hive.HiveError) as e:
+            to_test.get_location("db", "table; drop")
+        self.assertEqual('"table; drop" includes non allowed characters', e.exception.message)

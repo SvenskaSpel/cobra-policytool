@@ -47,7 +47,8 @@ setup(
     install_requires=[
         'requests>=2.18.4,<2.19',
         'requests-kerberos',
-        'click'],
+        'click',
+        'pyhive'],
     tests_require=['pytest',
                    'nose',
                    'mock'],
