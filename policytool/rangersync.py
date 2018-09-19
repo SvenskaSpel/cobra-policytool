@@ -1,3 +1,6 @@
+import copy
+
+import urlutil
 from template import apply_context
 from collections import namedtuple
 import click
@@ -25,17 +28,123 @@ def apply_command(policy_command, context):
     :return: policies for tables
     """
     command = policy_command['command']
+    options = policy_command.get('options', {})
     policy_template = policy_command['policy']
     if command == 'apply_rule':
-        return apply_rule_command(policy_template, context)
+        return apply_rule_command(policy_template, context, options)
     elif command == 'apply_tag_row_rule':
         return apply_tag_row_rule_command(policy_command['filters'], policy_template, context)
     else:
         raise RangerSyncError("Unknown command: {}".format(command))
 
 
-def apply_rule_command(policy_template, context):
-    return [apply_context(policy_template, context)]
+def apply_rule_command(policy_template, context, options=[]):
+    policies_with_context = [apply_context(policy_template, context)]
+    result = copy.deepcopy(policies_with_context)
+    if options.get("expandHiveResourceToHdfs", False):
+        for policy in policies_with_context:
+            policy_template_hdfs = _convert_hive_access_rule_to_hdfs(policy, context, options)
+            result.append(apply_context(policy_template_hdfs, context))
+    return result
+
+
+def _convert_hive_accesses_to_file_accesses(hive_accesses):
+    read_access_tag = False
+    write_access_tag = False
+    read_access_resource = False
+    write_access_resource = False
+    for elem in hive_accesses:
+        if elem["isAllowed"] and elem['type'] in ["hive:select", "hive:read"]:
+            read_access_tag = True
+        if elem["isAllowed"] and elem['type'] in ["hive:update", "hive:insert", "hive:create", "hive:drop", "hive:alter", "hive:write"]:
+            write_access_tag = True
+        if elem["isAllowed"] and elem['type'] in ["select", "read"]:
+            read_access_resource = True
+        if elem["isAllowed"] and elem['type'] in ["update", "insert", "create", "drop", "alter", "write"]:
+            write_access_resource = True
+    if (read_access_resource or write_access_resource) and (read_access_tag or write_access_tag):
+        raise AttributeError("Cannot mix access rules prefixed with resource and not.")
+    elif read_access_tag and not write_access_tag:
+        return [{
+            "type":"hdfs:read",
+            "isAllowed": True
+        }, {
+            "type":"hdfs:execute",
+            "isAllowed": True
+        }]
+    elif write_access_tag:
+        return [{
+            "type":"hdfs:write",
+            "isAllowed": True
+        }, {
+            "type":"hdfs:read",
+            "isAllowed": True
+        }, {
+            "type":"hdfs:execute",
+            "isAllowed": True
+        }]
+    elif read_access_resource and not write_access_resource:
+        return [{
+            "type":"read",
+            "isAllowed": True
+        }, {
+            "type":"execute",
+            "isAllowed": True
+        }]
+    elif write_access_resource:
+        return [{
+            "type":"write",
+            "isAllowed": True
+        }, {
+            "type":"read",
+            "isAllowed": True
+        }, {
+            "type":"execute",
+            "isAllowed": True
+        }]
+    else:
+        return []
+
+
+def _get_mapped_path_for_database_resource(hive_client, hive_resources):
+    try:
+        databases = hive_resources["database"]["values"]
+        tables = hive_resources["table"]["values"]
+    except KeyError as e:
+        raise RangerSyncError("Resource lack information about database or table. " + e.message)
+
+    paths = []
+    for db in databases:
+        for table in tables:
+            paths.append(urlutil.get_path(hive_client.get_location(db, table)))
+    return paths
+
+
+def _convert_hive_access_rule_to_hdfs(policy_template, context, options):
+    policy_template_hdfs = copy.deepcopy(policy_template)
+    if not options.has_key("hdfsService"):
+        raise RangerSyncError("Option hdfsService must be set if expandHiveResourceToHdfs is true.")
+    if policy_template["policyType"] != 0:
+        raise RangerSyncError("PolicyType must be 0 to support option expandHiveResourceToHdfs.")
+    if not context.has_key("hive_client"):
+        raise RangerSyncError("Hive server must be configured when using expandHiveResourceToHdfs option.")
+    else:
+        hive_client = context["hive_client"]
+    policy_template_hdfs["service"] = options["hdfsService"]
+    policy_template_hdfs["description"] = "Implementing hdfs access for {}. Expanded by cobra-policytool.".format(policy_template["name"])
+    hdfs_paths = _get_mapped_path_for_database_resource(hive_client, policy_template["resources"])
+    policy_template_hdfs["name"] = "{} Paths {}".format(policy_template_hdfs["name"], " ".join(hdfs_paths))
+    policy_template_hdfs["resources"] = {"path": {
+        "values": hdfs_paths,
+        "isRecursive": True,
+        "isExcludes": False
+    }}
+    policy_template_hdfs["policyItems"] = []
+    for policy_item in policy_template["policyItems"]:
+        policy_item_copy = copy.deepcopy(policy_item)
+        policy_item_copy["accesses"] = _convert_hive_accesses_to_file_accesses(policy_item_copy["accesses"])
+        policy_template_hdfs["policyItems"].append(policy_item_copy)
+    return policy_template_hdfs
 
 
 def _tags_to_columns(columns):

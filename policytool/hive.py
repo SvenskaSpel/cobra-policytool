@@ -7,17 +7,19 @@ class Client:
 
     _conn = None
 
-    def __init__(self, host, port=10000, auth="KERBEROS", service_name="hive"):
+    def __init__(self, host, port=10000, auth="KERBEROS", service_name="hive", version=1):
         """
         :param host: Name of hive server.
         :param port: Thrift port of hiveserver
         :param auth: Authentication method, only kerberos supported for now.
         :param service_name: Kerberos service name. Defaults to hive.
+        :param version: Version of hive.
         """
         self.host = host
-        self.port = port
+        self.port = int(port)
         self.auth = auth
         self.service_name = service_name
+        self.version = version
 
     def _connection(self):
         if not self._conn:
@@ -34,14 +36,20 @@ class Client:
         if re.search("[^a-zA-Z0-9_]", entity):
             raise HiveError("\"{}\" includes non allowed characters".format(entity))
 
-    def get_location(self, database, table):
+    def get_location(self, database, table=None):
         Client._verify_entity_name(database)
-        Client._verify_entity_name(table)
-        cursor = self._connection().cursor()
-        cursor.execute("describe formatted {}.{}".format(database, table))
-        for key, value, _ in cursor.fetchall():
-            if key.strip() == u'Location:':
-                return value.strip()
+        if table is not None and table != '*':
+            Client._verify_entity_name(table)
+            cursor = self._connection().cursor()
+            cursor.execute("describe formatted {}.{}".format(database, table))
+            for key, value, _ in cursor.fetchall():
+                if key.strip() == u'Location:':
+                    return value.strip()
+        else:
+            cursor = self._connection().cursor()
+            cursor.execute("describe database {}".format(database))
+            for _, _, location, _ , _, _ in cursor.fetchall():
+                return location
         raise HiveError("Can not find location for {}.{}.".format(database, table))
 
 

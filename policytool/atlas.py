@@ -1,5 +1,7 @@
 import requests
 
+import urlutil
+
 
 class Client:
 
@@ -179,15 +181,15 @@ class Client:
         :param guid: Guid to find tags for
         :return: List of tags.
         """
-        response = requests.get(self.url_prefix + "/entities/" + guid)
+        response = requests.get(self.url_prefix + "/entities/" + guid, auth=self.auth)
         if response.status_code == 200:
             json_response = response.json()
-            if json_response.has_key('traitNames'):
-                return set(json_response['traitNames'])
+            if json_response['definition'].has_key('traitNames'):
+                return set(json_response['definition']['traitNames'])
             else:
-                return []
+                return set()
         else:
-            AtlasError("Cannot look up guid {}.".format(guid, response.status_code))
+            raise AtlasError("Cannot look up guid {}.".format(guid, response.status_code))
 
     def add_hdfs_path(self, hdfs_path):
         """
@@ -197,9 +199,8 @@ class Client:
         :param hdfs_path: Full url to the file or directory hdfs://environment/my/path/
         :return: guid assigned
         """
-        # TODO: Validate hdfs_path
-        cluster_name = hdfs_path.split('/')[2]
-        name = "/" + "/".join(hdfs_path.split('/')[3:])
+        cluster_name = urlutil.get_host(hdfs_path)
+        name = urlutil.get_path(hdfs_path)
         entity = {
             "entity": {
                 "typeName": "hdfs_path",

@@ -16,8 +16,13 @@ Cobra-policytool can manage have row level filtering policies for
 [Apache Hive](https://hive.apache.org/) based on tags. Ranger requires one
 row level policy per table, but with cobra-policytool one can
 have one rule per tag. This rule is then expanded by the cobra-policytool
-to one rule fore each table having the tag. This eases the maintenance
-and reduce risks for errors.
+to one rule fore each table having the tag. 
+
+Most often one want to have the same access rights hive tables and corresponding
+files and directories on hdfs. Cobra-policytool can automatically convert a policy
+for a Hive table to policy for hdfs.
+
+This eases the maintenance and reduce risks for errors.
 
 
 To be able to use the tool you need to have the right permissions in the

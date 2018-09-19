@@ -64,7 +64,7 @@ def _tags_to_atlas(srcdir, environment, hdfs, retry, verbose, config):
         if hdfs:
             if verbose > 0:
                 print("Syncing tags for table storage.")
-            log = sync_client.sync_table_storage_tags(tagsync.add_environment(src_data_table, environment))
+            log = sync_client.sync_table_storage_tags(src_data_table)
             if verbose > 0:
                 tagsync.print_sync_worklog(log)
     except (tagsync.SyncError, IOError) as e:
@@ -112,6 +112,9 @@ def _rules_to_ranger_cmd(srcdir, project_name, environment, config, verbose, dry
         "tables": tables,
         "table_columns": table_columns,
     }
+
+    if conf.has_key('hive_server'):
+        context_dict['hive_client'] = hive.Client(conf['hive_server'], conf['hive_port'])
 
     # Add variables from config to context_dict.
     for var in conf.get('variables', []):

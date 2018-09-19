@@ -19,7 +19,7 @@ class _CursorMock:
 
 class TestHiveClient(unittest.TestCase):
 
-    def test_get_location(self):
+    def test_get_location_for_db_and_table(self):
         result_from_db=[("foo", "bar", None), ("Location:      ", "hdfs://sys/path", None)]
         to_test = hive.Client("dummyhost")
         connection_dummy = type('', (), {})()
@@ -27,6 +27,16 @@ class TestHiveClient(unittest.TestCase):
         to_test._connection = MagicMock(return_value=connection_dummy)
 
         result = to_test.get_location("db", "table")
+        self.assertEqual(result, "hdfs://sys/path")
+
+    def test_get_location_only_db(self):
+        result_from_db=[(None, None, "hdfs://sys/path", None, None, None)]
+        to_test = hive.Client("dummyhost")
+        connection_dummy = type('', (), {})()
+        connection_dummy.cursor = lambda: _CursorMock(fetchall=lambda: result_from_db)
+        to_test._connection = MagicMock(return_value=connection_dummy)
+
+        result = to_test.get_location("db")
         self.assertEqual(result, "hdfs://sys/path")
 
     def test_get_location_with_insecure_db(self):
