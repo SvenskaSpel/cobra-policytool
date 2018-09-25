@@ -26,21 +26,27 @@ class Client:
         :param values: Provide as many as you know of schema, table, column in that order.
         :return: Query to be sent to Atlas API.
         """
-        query = {}
-        query['typeName'] = type_name
-        query['excludeDeletedEntities'] = True
-        query['limit'] = 10000
-        entity_filter = {}
-        entity_filter['condition']='AND'
+        query = {
+            'typeName': type_name,
+            'excludeDeletedEntities': True,
+            'limit': 10000
+        }
+        entity_filter = {
+            'condition': 'AND'
+        }
         criterion = []
         n = 0
         for v in values:
-            criteria = {}
-            criteria['attributeName'] = 'qualifiedName'
-            criteria['operator'] = 'STARTSWITH' if n==0 else 'CONTAINS'
-            criteria['attributeValue'] = v
+            criteria = {
+                'attributeName': 'qualifiedName',
+                'operator': 'STARTSWITH' if n == 0 else 'CONTAINS',
+                'attributeValue': v
+            }
             n += 1
             criterion.append(criteria)
+        if type_name == 'hive_table':
+            # Ignore temporary tables.
+            criterion.append({'operator': '=', 'attributeName': 'temporary', 'attributeValue': False})
         entity_filter['criterion'] = criterion
         query['entityFilters'] = entity_filter
         return query
