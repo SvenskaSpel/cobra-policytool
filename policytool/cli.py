@@ -122,7 +122,7 @@ def _rules_to_ranger_cmd(srcdir, project_name, environment, config, verbose, dry
 
     context = Context(context_dict)
 
-    with open(policy_file) as f:
+    with open(policy_file, 'rU') as f:
         policy_commands = json.load(f)
 
     policies = rangersync.apply_commands(policy_commands, context)

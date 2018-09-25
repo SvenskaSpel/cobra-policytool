@@ -6,42 +6,6 @@ import mock
 
 class TestSync(unittest.TestCase):
 
-    def test__convert_hive_accesses_to_file_for_read_tag_rules(self):
-        indata = [{
-            "type": "hive:select",
-            "isAllowed": True
-        }, {
-            "type": "hive:read",
-            "isAllowed": True
-        }]
-        expected_result = [{
-            "type": "hdfs:read",
-            "isAllowed": True
-        }, {
-            "type": "hdfs:execute",
-            "isAllowed": True
-        }]
-        result = rangersync._convert_hive_accesses_to_file_accesses(indata)
-        self.assertEqual(expected_result, result)
-
-    def test__convert_hive_accesses_to_file_for_write_tag_rules(self):
-        indata = [{
-            "type": "hive:insert",
-            "isAllowed": True
-        }]
-        expected_result = [{
-            "type": "hdfs:write",
-            "isAllowed": True
-        }, {
-            "type": "hdfs:read",
-            "isAllowed": True
-        }, {
-            "type": "hdfs:execute",
-            "isAllowed": True
-        }]
-        result = rangersync._convert_hive_accesses_to_file_accesses(indata)
-        self.assertEqual(expected_result, result)
-
     def test__convert_hive_accesses_to_file_for_read_resource_rules(self):
         indata = [{
             "type": "select",
@@ -57,7 +21,7 @@ class TestSync(unittest.TestCase):
             "type": "execute",
             "isAllowed": True
         }]
-        result = rangersync._convert_hive_accesses_to_file_accesses(indata)
+        result = rangersync._convert_hive_resource_accesses_to_path_resource_accesses(indata)
         self.assertEqual(expected_result, result)
 
     def test__convert_hive_accesses_to_file_for_write_resource_rules(self):
@@ -75,7 +39,7 @@ class TestSync(unittest.TestCase):
             "type": "execute",
             "isAllowed": True
         }]
-        result = rangersync._convert_hive_accesses_to_file_accesses(indata)
+        result = rangersync._convert_hive_resource_accesses_to_path_resource_accesses(indata)
         self.assertEqual(expected_result, result)
 
     def test__convert_hive_accesses_to_file_no_access(self):
@@ -87,22 +51,26 @@ class TestSync(unittest.TestCase):
             "isAllowed": False
         }]
         expected_result = []
-        result = rangersync._convert_hive_accesses_to_file_accesses(indata)
+        result = rangersync._convert_hive_resource_accesses_to_path_resource_accesses(indata)
         self.assertEqual(expected_result, result)
 
     def test__convert_hive_access_rule_no_hdfs_service(self):
         with self.assertRaises(rangersync.RangerSyncError) as e:
-            rangersync._convert_hive_access_rule_to_hdfs({}, {}, {})
-        self.assertEqual("Option hdfsService must be set if expandHiveResourceToHdfs is true.", e.exception.message)
+            rangersync._convert_hive_resource_policy_to_hdfs_policy({}, {}, {})
+        self.assertEqual(
+            "Option hdfsService must be set if expandHiveResourceToHdfs is true on a policy with database resource.",
+            e.exception.message)
 
     def test__convert_hive_access_rule_with_wrong_policy_type(self):
         with self.assertRaises(rangersync.RangerSyncError) as e:
-            rangersync._convert_hive_access_rule_to_hdfs({"policyType": 1}, {}, {"hdfsService": "service_hdfs"})
-        self.assertEqual("PolicyType must be 0 to support option expandHiveResourceToHdfs.", e.exception.message)
+            rangersync._convert_hive_resource_policy_to_hdfs_policy({"policyType": 1}, {}, {"hdfsService": "service_hdfs"})
+        self.assertEqual(
+            "Hive server must be configured when using expandHiveResourceToHdfs option.",
+            e.exception.message)
 
     def test__convert_hive_access_rule_without_hive_client_in_context(self):
         with self.assertRaises(rangersync.RangerSyncError) as e:
-            rangersync._convert_hive_access_rule_to_hdfs({"policyType": 0}, {}, {"hdfsService": "service_hdfs"})
+            rangersync._convert_hive_resource_policy_to_hdfs_policy({"policyType": 0}, {}, {"hdfsService": "service_hdfs"})
         self.assertEqual("Hive server must be configured when using expandHiveResourceToHdfs option.", e.exception.message)
 
     def test__convert_hive_access_rule_to_hdfs(self):
@@ -125,7 +93,7 @@ class TestSync(unittest.TestCase):
                 "isRecursive": False
             }
         }
-        result = rangersync._get_mapped_path_for_database_resource(hive_client, resources)
+        result = rangersync._get_paths_for_database_resources(hive_client, resources)
         self.assertEqual(["/my/path.db"], result)
         hive_client.get_location.assert_called_once_with("mydb", "*")
 
@@ -149,7 +117,7 @@ class TestSync(unittest.TestCase):
                 "isRecursive": False
             }
         }
-        result = rangersync._get_mapped_path_for_database_resource(hive_client, resources)
+        result = rangersync._get_paths_for_database_resources(hive_client, resources)
         self.assertEqual(['/mydb_1/table_1.db',
                           '/mydb_1/table_2.db',
                           '/mydb_2/table_1.db',
@@ -170,7 +138,7 @@ class TestSync(unittest.TestCase):
             }
         }
         with self.assertRaises(rangersync.RangerSyncError):
-            rangersync._get_mapped_path_for_database_resource(hive_client, resources)
+            rangersync._get_paths_for_database_resources(hive_client, resources)
 
     def test__convert_hive_access_rule_for_database_to_hdfs(self):
         policy_template_input = {
@@ -209,7 +177,7 @@ class TestSync(unittest.TestCase):
         }
         policy_template_expected = {
             "service": "service_hdfs",
-            "name": "test_policy_rule Paths /apps/hive/warehouse/my_database.db",
+            "name": "path_test_policy_rule",
             "policyType": 0,
             "description": "Implementing hdfs access for test_policy_rule. Expanded by cobra-policytool.",
             "resources":
@@ -234,6 +202,70 @@ class TestSync(unittest.TestCase):
         hive_client = type('hive_client', (), {})()
         hive_client.get_location = MagicMock(return_value="hdfs://system/apps/hive/warehouse/my_database.db")
         context = {'hive_client': hive_client}
-        result = rangersync._convert_hive_access_rule_to_hdfs(policy_template_input, context, {"hdfsService": "service_hdfs"}, )
+        result = rangersync._convert_hive_resource_policy_to_hdfs_policy(policy_template_input, context, {"hdfsService": "service_hdfs"})
         self.assertEqual(policy_template_expected, result)
+
+    def test__convert_tag_access_rule_to_both_hive_and_hdfs(self):
+        policy_template_input = {
+            "service": "service_tag",
+            "name": "test_policy_rule",
+            "policyType": 0,
+            "description": "Test rule",
+            "resources": {
+                "tag": {
+                    "values": [
+                        "visible"
+                    ],
+                    "isExcludes": False,
+                    "isRecursive": True
+                }
+            },
+            "policyItems": [{
+                "accesses": [{
+                    "type": "hive:select",
+                    "isAllowed": True
+                }, {
+                    "type": "hive:read",
+                    "isAllowed": True
+                }],
+                "users": ["myuser"],
+                "delegateAdmin": False
+            }]
+        }
+        policy_template_expected = {
+            "service": "service_tag",
+            "name": "test_policy_rule",
+            "policyType": 0,
+            "description": "Test rule",
+            "resources": {
+                "tag": {
+                    "values": [
+                        "visible"
+                    ],
+                    "isExcludes": False,
+                    "isRecursive": True
+                }
+            },
+            "policyItems": [{
+                "accesses": [{
+                        "type": "hive:select",
+                        "isAllowed": True
+                    }, {
+                        "type": "hive:read",
+                        "isAllowed": True
+                    },{
+                        "type": "hdfs:read",
+                        "isAllowed": True
+                    }, {
+                        "type": "hdfs:execute",
+                        "isAllowed": True
+                    }],
+                "users": ["myuser"],
+                "delegateAdmin": False
+            }]
+        }
+
+        result = rangersync. extend_tag_policy_with_hdfs(policy_template_input)
+        self.assertEqual(policy_template_expected, result)
+
 

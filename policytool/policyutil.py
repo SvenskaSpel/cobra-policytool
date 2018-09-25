@@ -9,14 +9,16 @@ def validate_policy(policy):
     """
     Simple validation a policy include som necessary elements.
     """
-    if not policy.has_key("name"):
+    if "name" not in policy:
         raise AttributeError("Policy missing attribute name.")
-    if not policy.has_key("policyType"):
+    if "policyType" not in policy:
         raise AttributeError("Policy {} do not have PolicyType.".format(policy["name"]))
-    if not policy.has_key("resources"):
+    if policy["policyType"] not in [0, 1, 2]:
+        raise AttributeError("Policy {} must have PolicyType 0, 1, or 2.".format(policy["name"]))
+    if "resources" not in policy:
         raise AttributeError("Policy {} do not have resources.".format(policy["name"]))
-    if not policy.has_key("policyItems"):
-        raise AttributeError("Policy {} do not have policyItems.".format(policy["name"]))
+    if policy["policyType"] == 0 and not ("policyItems" in policy or "denyPolicyItems" in policy):
+        raise AttributeError("Policy {} do not have policyItems nor denyPolicyItems.".format(policy["name"]))
 
 
 def get_resource_type(policy):
@@ -28,12 +30,12 @@ def get_resource_type(policy):
     if policy["policyType"] != 0:
         raise AttributeError(
             "PolicyType must be 0 to support option expandHiveResourceToHdfs. Policy: {}".format(policy["name"]))
-    resource = policy["resources"]
-    if resource.has_key("database"):
+    resources = policy["resources"]
+    if "database" in resources:
         return "database"
-    if resource.has_key("tag"):
+    if "tag" in resources:
         return "tag"
-    if resource.has_key("path"):
+    if "path" in resources:
         return "path"
     return "unknown"
 
@@ -48,11 +50,18 @@ def extend_tag_policy_with_hdfs(policy):
     if get_resource_type(policy) != "tag":
         raise AttributeError("Policy does not have resource type tag. Policy: {}".format(policy["name"]))
     policy_template_tag = copy.deepcopy(policy)
-    policy_template_tag["policyItems"] = []
-    for policy_item in policy["policyItems"]:
-        policy_item_copy = copy.deepcopy(policy_item)
-        policy_item_copy["accesses"] = _expand_hive_tag_accesses_to_file_accesses(policy_item_copy["accesses"])
-        policy_template_tag["policyItems"].append(policy_item_copy)
+    if "policyItems" in policy:
+        policy_template_tag["policyItems"] = []
+        for policy_item in policy["policyItems"]:
+            policy_item_copy = copy.deepcopy(policy_item)
+            policy_item_copy["accesses"] = _expand_hive_tag_accesses_to_file_accesses(policy_item_copy["accesses"])
+            policy_template_tag["policyItems"].append(policy_item_copy)
+    if "denyPolicyItems" in policy:
+        policy_template_tag["denyPolicyItems"] = []
+        for policy_item in policy["denyPolicyItems"]:
+            policy_item_copy = copy.deepcopy(policy_item)
+            policy_item_copy["accesses"] = _expand_hive_tag_accesses_to_file_accesses(policy_item_copy["accesses"])
+            policy_template_tag["denyPolicyItems"].append(policy_item_copy)
     return policy_template_tag
 
 

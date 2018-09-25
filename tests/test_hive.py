@@ -39,16 +39,26 @@ class TestHiveClient(unittest.TestCase):
         result = to_test.get_location("db")
         self.assertEqual(result, "hdfs://sys/path")
 
-    def test_get_location_with_insecure_db(self):
+    def test_get_location_with_insecure_db_string(self):
         to_test = hive.Client("dummyhost")
 
         with self.assertRaises(hive.HiveError) as e:
             to_test.get_location("db; drop", "table")
         self.assertEqual('"db; drop" includes non allowed characters', e.exception.message)
 
-    def test_get_location_with_insecure_db(self):
+    def test_get_location_with_insecure_table_string(self):
         to_test = hive.Client("dummyhost")
 
         with self.assertRaises(hive.HiveError) as e:
             to_test.get_location("db", "table; drop")
         self.assertEqual('"table; drop" includes non allowed characters', e.exception.message)
+
+    def test_get_location_for_db_and_table_when_view_return_none(self):
+        result_from_db=[("foo", "bar", None)]
+        to_test = hive.Client("dummyhost")
+        connection_dummy = type('', (), {})()
+        connection_dummy.cursor = lambda: _CursorMock(fetchall=lambda: result_from_db)
+        to_test._connection = MagicMock(return_value=connection_dummy)
+
+        result = to_test.get_location("db", "table")
+        self.assertEqual(result, None)

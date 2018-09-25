@@ -10,7 +10,7 @@ def strip_qualified_name(qualified_name):
 
 
 def read_file(file_path):
-    with open(file_path) as f:
+    with open(file_path, 'rU') as f:
         data = list(csv.DictReader(f, delimiter=';'))
     return data
 
@@ -259,17 +259,20 @@ class Sync:
         :return: Dictionary with actions as keys and metadata as value, used for logging.
         """
         storage_url = self.hive_client.get_location(schema, table)
-        guid = self.atlas_client.add_hdfs_path(storage_url)
+        if storage_url is not None:
+            guid = self.atlas_client.add_hdfs_path(storage_url)
 
-        tags_on_storage = self.atlas_client.get_tags_on_guid(guid)
-        tags_to_add = expected_tags-tags_on_storage
-        tags_to_delete = tags_on_storage-expected_tags
-        if len(tags_to_add) != 0:
-            self.atlas_client.add_tags_on_guid(guid, list(tags_to_add))
-            self.worklog['{} added tag'.format(storage_url)] = tags_to_add
-        if len(tags_to_delete) != 0:
-            self.atlas_client.delete_tags_on_guid(guid, list(tags_to_delete))
-            self.worklog['{} deleted tag'.format(storage_url)] = tags_to_delete
+            tags_on_storage = self.atlas_client.get_tags_on_guid(guid)
+            tags_to_add = expected_tags-tags_on_storage
+            tags_to_delete = tags_on_storage-expected_tags
+            if len(tags_to_add) != 0:
+                self.atlas_client.add_tags_on_guid(guid, list(tags_to_add))
+                self.worklog['{} added tag'.format(storage_url)] = tags_to_add
+            if len(tags_to_delete) != 0:
+                self.atlas_client.delete_tags_on_guid(guid, list(tags_to_delete))
+                self.worklog['{} deleted tag'.format(storage_url)] = tags_to_delete
+        else:
+            self.worklog['{}.{} is a view, not doing any hdfs tagging for it.'.format(schema, table)] = ''
         return self.worklog
 
     def sync_table_storage_tags(self, src_table_tags):

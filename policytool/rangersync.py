@@ -1,6 +1,7 @@
 import copy
 
 import urlutil
+from policyutil import validate_policy, get_resource_type, extend_tag_policy_with_hdfs
 from template import apply_context
 from collections import namedtuple
 import click
@@ -39,51 +40,81 @@ def apply_command(policy_command, context):
 
 
 def apply_rule_command(policy_template, context, options=[]):
+    validate_policy(policy_template)
     policies_with_context = [apply_context(policy_template, context)]
-    result = copy.deepcopy(policies_with_context)
+    result = []
     if options.get("expandHiveResourceToHdfs", False):
         for policy in policies_with_context:
-            policy_template_hdfs = _convert_hive_access_rule_to_hdfs(policy, context, options)
-            result.append(apply_context(policy_template_hdfs, context))
+            resource_type = get_resource_type(policy)
+            if resource_type == "tag":
+                policy_template_tag = extend_tag_policy_with_hdfs(policy)
+                result.append(apply_context(policy_template_tag, context))
+            elif resource_type == "database":
+                result.append(policy)
+                policy_template_hdfs = _convert_hive_resource_policy_to_hdfs_policy(policy, context, options)
+                result.append(apply_context(policy_template_hdfs, context))
+            else:
+                # For other resource types like path we do nothing, except add it to the result.
+                result.append(policy)
+    else:
+        result = copy.deepcopy(policies_with_context)
     return result
 
 
-def _convert_hive_accesses_to_file_accesses(hive_accesses):
-    read_access_tag = False
-    write_access_tag = False
+def apply_tag_row_rule_command(filters, policy_template, context):
+    tables = context['tables']
+    policies = []
+    for table in tables:
+        table_name = "{}.{}".format(table['schema'], table['table'])
+        columns = context['table_columns'][table_name]
+        tag_columns = _tags_to_columns(columns)
+        tags = set(table["tags"].split(","))
+        row_filters = []
+        for filter_ in filters:
+            tag_filter_exprs = [
+                tagFilterExpr['filterExpr']
+                for tagFilterExpr in filter_['tagFilterExprs']
+                if set(tagFilterExpr['tags']) <= tags
+            ]
+            tag_filter_exprs_str = " and ".join(tag_filter_exprs)
+            if len(tag_filter_exprs) > 0:
+                row_filters.append({
+                    "groups": filter_['groups'],
+                    "users": filter_['users'],
+                    "conditions": [],
+                    "accesses": [{
+                        "isAllowed": True,
+                        "type": "select"
+                    }],
+                    "rowFilterInfo": {
+                        "filterExpr": tag_filter_exprs_str
+                    },
+                    "delegateAdmin": False
+                })
+        if len(row_filters) > 0:
+            end_date_columns = tag_columns['end_date']
+            env = {
+                "schema": table['schema'],
+                "table": table['table'],
+                "end_date_column": end_date_columns[0] if len(end_date_columns) else "<END_DATE_COLUMN_MISSING>"
+            }
+            new_context = context.extend(env)
+            policy_template_copy = policy_template.copy()
+            policy_template_copy['rowFilterPolicyItems'] = row_filters
+            policy = apply_context(policy_template_copy, new_context)
+            policies.append(policy)
+    return policies
+
+
+def _convert_hive_resource_accesses_to_path_resource_accesses(hive_accesses):
     read_access_resource = False
     write_access_resource = False
     for elem in hive_accesses:
-        if elem["isAllowed"] and elem['type'] in ["hive:select", "hive:read"]:
-            read_access_tag = True
-        if elem["isAllowed"] and elem['type'] in ["hive:update", "hive:insert", "hive:create", "hive:drop", "hive:alter", "hive:write"]:
-            write_access_tag = True
         if elem["isAllowed"] and elem['type'] in ["select", "read"]:
             read_access_resource = True
         if elem["isAllowed"] and elem['type'] in ["update", "insert", "create", "drop", "alter", "write"]:
             write_access_resource = True
-    if (read_access_resource or write_access_resource) and (read_access_tag or write_access_tag):
-        raise AttributeError("Cannot mix access rules prefixed with resource and not.")
-    elif read_access_tag and not write_access_tag:
-        return [{
-            "type":"hdfs:read",
-            "isAllowed": True
-        }, {
-            "type":"hdfs:execute",
-            "isAllowed": True
-        }]
-    elif write_access_tag:
-        return [{
-            "type":"hdfs:write",
-            "isAllowed": True
-        }, {
-            "type":"hdfs:read",
-            "isAllowed": True
-        }, {
-            "type":"hdfs:execute",
-            "isAllowed": True
-        }]
-    elif read_access_resource and not write_access_resource:
+    if read_access_resource and not write_access_resource:
         return [{
             "type":"read",
             "isAllowed": True
@@ -106,7 +137,7 @@ def _convert_hive_accesses_to_file_accesses(hive_accesses):
         return []
 
 
-def _get_mapped_path_for_database_resource(hive_client, hive_resources):
+def _get_paths_for_database_resources(hive_client, hive_resources):
     try:
         databases = hive_resources["database"]["values"]
         tables = hive_resources["table"]["values"]
@@ -116,24 +147,25 @@ def _get_mapped_path_for_database_resource(hive_client, hive_resources):
     paths = []
     for db in databases:
         for table in tables:
-            paths.append(urlutil.get_path(hive_client.get_location(db, table)))
+            path = urlutil.get_path(hive_client.get_location(db, table))
+            if path is not None:
+                paths.append(path)
     return paths
 
 
-def _convert_hive_access_rule_to_hdfs(policy_template, context, options):
+def _convert_hive_resource_policy_to_hdfs_policy(policy_template, context, options):
     policy_template_hdfs = copy.deepcopy(policy_template)
     if not options.has_key("hdfsService"):
-        raise RangerSyncError("Option hdfsService must be set if expandHiveResourceToHdfs is true.")
-    if policy_template["policyType"] != 0:
-        raise RangerSyncError("PolicyType must be 0 to support option expandHiveResourceToHdfs.")
+        raise RangerSyncError(
+            "Option hdfsService must be set if expandHiveResourceToHdfs is true on a policy with database resource.")
     if not context.has_key("hive_client"):
         raise RangerSyncError("Hive server must be configured when using expandHiveResourceToHdfs option.")
     else:
         hive_client = context["hive_client"]
     policy_template_hdfs["service"] = options["hdfsService"]
     policy_template_hdfs["description"] = "Implementing hdfs access for {}. Expanded by cobra-policytool.".format(policy_template["name"])
-    hdfs_paths = _get_mapped_path_for_database_resource(hive_client, policy_template["resources"])
-    policy_template_hdfs["name"] = "{} Paths {}".format(policy_template_hdfs["name"], " ".join(hdfs_paths))
+    hdfs_paths = _get_paths_for_database_resources(hive_client, policy_template["resources"])
+    policy_template_hdfs["name"] = "path_{}".format(policy_template_hdfs["name"])
     policy_template_hdfs["resources"] = {"path": {
         "values": hdfs_paths,
         "isRecursive": True,
@@ -142,7 +174,7 @@ def _convert_hive_access_rule_to_hdfs(policy_template, context, options):
     policy_template_hdfs["policyItems"] = []
     for policy_item in policy_template["policyItems"]:
         policy_item_copy = copy.deepcopy(policy_item)
-        policy_item_copy["accesses"] = _convert_hive_accesses_to_file_accesses(policy_item_copy["accesses"])
+        policy_item_copy["accesses"] = _convert_hive_resource_accesses_to_path_resource_accesses(policy_item_copy["accesses"])
         policy_template_hdfs["policyItems"].append(policy_item_copy)
     return policy_template_hdfs
 
@@ -155,51 +187,6 @@ def _tags_to_columns(columns):
         for column_tag in column_tags:
             tag_columns[column_tag].append(attribute)
     return tag_columns
-
-
-def apply_tag_row_rule_command(filters, policy_template, context):
-    tables = context['tables']
-    policies = []
-    for table in tables:
-        table_name = "{}.{}".format(table['schema'], table['table'])
-        columns = context['table_columns'][table_name]
-        tag_columns = _tags_to_columns(columns)
-        tags = set(table["tags"].split(","))
-        row_filters = []
-        for filter_ in filters:
-            tag_filter_exprs = [
-                tagFilterExpr['filterExpr']
-                for tagFilterExpr in filter_['tagFilterExprs']
-                if set(tagFilterExpr['tags']) <= tags
-            ]
-            tag_filter_exprs_str = " and ".join(tag_filter_exprs)
-            if len(tag_filter_exprs) > 0:
-                row_filters.append({
-                  "groups": filter_['groups'],
-                  "users": filter_['users'],
-                  "conditions": [],
-                  "accesses": [{
-                    "isAllowed": True,
-                    "type": "select"
-                  }],
-                  "rowFilterInfo": {
-                    "filterExpr": tag_filter_exprs_str
-                  },
-                  "delegateAdmin": False
-                })
-        if len(row_filters) > 0:
-            end_date_columns = tag_columns['end_date']
-            env = {
-                "schema": table['schema'],
-                "table": table['table'],
-                "end_date_column": end_date_columns[0] if len(end_date_columns) else "<END_DATE_COLUMN_MISSING>"
-            }
-            new_context = context.extend(env)
-            policy_template_copy = policy_template.copy()
-            policy_template_copy['rowFilterPolicyItems'] = row_filters
-            policy = apply_context(policy_template_copy, new_context)
-            policies.append(policy)
-    return policies
 
 
 RuleIdentifier = namedtuple('RuleIdentifier', 'service,name')

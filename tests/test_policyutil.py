@@ -34,6 +34,35 @@ class TestValidatePolicy(unittest.TestCase):
         }
         policyutil.validate_policy(policy)
 
+    def test_validate_policy_with_deny_policy_items(self):
+        policy = {
+            "service": "service_tag",
+            "name": "test_policy_rule",
+            "policyType": 0,
+            "description": "Test rule",
+            "resources": {
+                "tag": {
+                    "values": [
+                        "visible"
+                    ],
+                    "isExcludes": False,
+                    "isRecursive": True
+                }
+            },
+            "denyPolicyItems": [{
+                "accesses": [{
+                    "type": "hive:select",
+                    "isAllowed": True
+                }, {
+                    "type": "hive:read",
+                    "isAllowed": True
+                }],
+                "users": ["myuser"],
+                "delegateAdmin": False
+            }]
+        }
+        policyutil.validate_policy(policy)
+
     def test_validate_policy_with_missing_name(self):
         policy = {
             "service": "service_tag",
@@ -117,7 +146,7 @@ class TestValidatePolicy(unittest.TestCase):
             policyutil.validate_policy(policy)
             self.fail("Validate policy did not raise exception for missing resources.")
 
-    def test_validate_policy_with_missing_policyitems(self):
+    def test_validate_policy_with_missing_policyitems_and_policytype_0(self):
         policy = {
             "service": "service_tag",
             "name": "test_policy_rule",
@@ -136,6 +165,24 @@ class TestValidatePolicy(unittest.TestCase):
         with self.assertRaises(AttributeError):
             policyutil.validate_policy(policy)
             self.fail("Validate policy did not raise exception for missing policyItems.")
+
+    def test_validate_policy_with_missing_policyitems_and_policytype_not_0(self):
+        policy = {
+            "service": "service_tag",
+            "name": "test_policy_rule",
+            "policyType": 1,
+            "description": "Test rule",
+            "resources": {
+                "tag": {
+                    "values": [
+                        "visible"
+                    ],
+                    "isExcludes": False,
+                    "isRecursive": True
+                }
+            }
+        }
+        policyutil.validate_policy(policy)
 
 
 class TestResourceType(unittest.TestCase):
@@ -280,6 +327,40 @@ class TestExtendTagPolicyWithHdfs(unittest.TestCase):
         }
         policy_expected = {
             "policyItems": [{
+                "accesses": [{
+                    "isAllowed": True,
+                    "type": "hive:insert"
+                }, {
+                    "isAllowed": True,
+                    "type": "hdfs:write"
+                }],
+                "delegateAdmin": False,
+                "users": ["myuser"]
+            }],
+            "policyType": 0,
+            "resources": {
+                "tag": {}
+            }
+        }
+        self.assertEqual(policy_expected, policyutil.extend_tag_policy_with_hdfs(policy_input))
+
+    def test_deny_write_access(self):
+        policy_input = {
+            "policyType": 0,
+            "resources": {
+                "tag": {}
+            },
+            "denyPolicyItems": [{
+                "accesses": [{
+                    "type": "hive:insert",
+                    "isAllowed": True
+                }],
+                "users": ["myuser"],
+                "delegateAdmin": False
+            }]
+        }
+        policy_expected = {
+            "denyPolicyItems": [{
                 "accesses": [{
                     "isAllowed": True,
                     "type": "hive:insert"
