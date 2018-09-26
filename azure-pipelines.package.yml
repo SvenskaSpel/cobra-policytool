@@ -36,3 +36,11 @@ jobs:
       testRunTitle: 'Python $(python.version)'
     condition: succeededOrFailed()
 
+  - script: python setup.py sdist bdist_wheel
+    displayName: 'Build sdist'
+
+  - task: PyPIPublisher@0
+    inputs:
+      pypiConnection: 'pypiservice'
+      packageDirectory: '.'
+      alsoPublishWheel: true
