@@ -176,6 +176,10 @@ access must be left out.
 ```
 {
     "command": "apply_rule",
+    "options": {
+        "expandHiveResourceToHdfs": true,
+        "hdfsService": "svs${installation}_hadoop"
+    },
     "policy": {
       "service": "${installation}_hive",
       "name": "${project_name}_${environment}_vanilla",
@@ -253,6 +257,11 @@ right to delegate its rights to other users
 
 You may have many access rules for one resource but they must all be in the
 same policy object and listed as different policy items.
+
+The `options` part in the example tells cobra-policytool to also create a corresponding
+rule for hdfs. The option `hdfsService` is used for point out the name of the hdfs service
+in Ranger. Note that this can be used both when you point out tables explicitly as in the example
+or when using tags.
 
 
 #### Masking policy

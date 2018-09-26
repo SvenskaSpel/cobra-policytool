@@ -1,5 +1,7 @@
 import requests
 
+import urlutil
+
 
 class Client:
 
@@ -14,6 +16,9 @@ class Client:
     def _search(self, query):
         return requests.post(self.url_prefix + "/v2/search/basic", json=query, auth=self.auth)
 
+    def _post_entity(self, entity):
+        return requests.post(self.url_prefix + "/v2/entity", json=entity, auth=self.auth)
+
     def _create_qualifiedname_query(self, type_name, *values):
         """
         See _get_qualified_name for reason why implemented like this.
@@ -21,21 +26,27 @@ class Client:
         :param values: Provide as many as you know of schema, table, column in that order.
         :return: Query to be sent to Atlas API.
         """
-        query = {}
-        query['typeName'] = type_name
-        query['excludeDeletedEntities'] = True
-        query['limit'] = 10000
-        entity_filter = {}
-        entity_filter['condition']='AND'
+        query = {
+            'typeName': type_name,
+            'excludeDeletedEntities': True,
+            'limit': 10000
+        }
+        entity_filter = {
+            'condition': 'AND'
+        }
         criterion = []
         n = 0
         for v in values:
-            criteria = {}
-            criteria['attributeName'] = 'qualifiedName'
-            criteria['operator'] = 'STARTSWITH' if n==0 else 'CONTAINS'
-            criteria['attributeValue'] = v
+            criteria = {
+                'attributeName': 'qualifiedName',
+                'operator': 'STARTSWITH' if n == 0 else 'CONTAINS',
+                'attributeValue': v
+            }
             n += 1
             criterion.append(criteria)
+        if type_name == 'hive_table':
+            # Ignore temporary tables.
+            criterion.append({'operator': '=', 'attributeName': 'temporary', 'attributeValue': False})
         entity_filter['criterion'] = criterion
         query['entityFilters'] = entity_filter
         return query
@@ -168,6 +179,55 @@ class Client:
         post_data={"classificationDefs": list([{"name": t, "description":"", "superTypes":[], "attributeDefs":[]} for t in tags])}
         response=requests.post(self.url_prefix + "/v2/types/typedefs?type=classification", auth=self.auth, json=post_data)
         if response.status_code != 200:
+            raise AtlasError(response.content, response.status_code)
+
+    def get_tags_on_guid(self, guid):
+        """
+        Return tags on the entity guid in Atlas.
+        :param guid: Guid to find tags for
+        :return: List of tags.
+        """
+        response = requests.get(self.url_prefix + "/entities/" + guid, auth=self.auth)
+        if response.status_code == 200:
+            json_response = response.json()
+            if json_response['definition'].has_key('traitNames'):
+                return set(json_response['definition']['traitNames'])
+            else:
+                return set()
+        else:
+            raise AtlasError("Cannot look up guid {}.".format(guid, response.status_code))
+
+    def add_hdfs_path(self, hdfs_path):
+        """
+        Post to http://atlas.hadoop.svenskaspel.se/api/atlas/v2/entity
+        Post data {"entity":{"typeName":"hdfs_path","attributes":{"description":null,"name":"hdfs://svsprod/apps/hive/warehouse/hadoop_out_prod.db/country_d","owner":null,"qualifiedName":"hdfs://svsprod/apps/hive/warehouse/hadoop_out_prod.db/country_d","createTime":1536098400000,"fileSize":null,"group":null,"isFile":null,"isSymlink":null,"modifiedTime":1536098400000,"path":"hdfs://svsprod/apps/hive/warehouse/hadoop_out_prod.db/country_d","clusterName":null,"numberOfReplicas":null},"guid":-1},"referredEntities":{}}
+        Response: {"mutatedEntities":{"CREATE":[{"typeName":"hdfs_path","attributes":{"qualifiedName":"hdfs://svsprod/apps/hive/warehouse/hadoop_out_prod.db/country_d"},"guid":"e20823a6-5521-4dc9-b2a7-b5a1d9babecd","status":"ACTIVE"}]},"guidAssignments":{"-1":"e20823a6-5521-4dc9-b2a7-b5a1d9babecd"}}
+        :param hdfs_path: Full url to the file or directory hdfs://environment/my/path/
+        :return: guid assigned
+        """
+        cluster_name = urlutil.get_host(hdfs_path)
+        name = urlutil.get_path(hdfs_path)
+        entity = {
+            "entity": {
+                "typeName": "hdfs_path",
+                "attributes": {
+                    "description": "Created/Updated by cobra-policytool.",
+                    "name": name,
+                    "qualifiedName": hdfs_path,
+                    "path": hdfs_path,
+                    "clusterName": cluster_name,
+                },
+                "guid": -1
+            },
+        }
+        response = self._post_entity(entity)
+        if response.status_code == 200:
+            json_response = response.json()
+            if json_response.has_key('guidAssignments'):
+                return json_response['guidAssignments']['-1']
+            else:
+                AtlasError("Failed to add hdfs path {} content mismatch {}".format(hdfs_path, response.content))
+        else:
             raise AtlasError(response.content, response.status_code)
 
 

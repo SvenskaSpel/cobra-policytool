@@ -1,7 +1,8 @@
 # Config file
 
 Before using cobra-policytool for first time you need to configure it for your
-environment.
+environment, eg point out atlas and ranger servers. Cobra-policytool expect that
+ everything authenticate using Kerberos.
 
 ## Location of config file
 You can either provide the config file with the argument `-c` which is the 
@@ -21,16 +22,34 @@ option `--environment`, see also [conventions](Conventions.md). Example:
   {
     "name": "prod",
     "atlas_api_url": "http://atlas.prod.myorg.com:21000/api/atlas",
-    "ranger_api_url": "http://ranger.prod.myorg.com:6080"
+    "ranger_api_url": "http://ranger.prod.myorg.com:6080",
+    "hive_server": "hiveserver2.prod.myorg.com",
+    "hive_port": "10000"
   },{
     "name": "test",
     "atlas_api_url": "http://atlas.test.myorg.com:21000/api/atlas",
-    "ranger_api_url": "http://ranger.test.myorg.com:6080"
+    "ranger_api_url": "http://ranger.test.myorg.com:6080",
+    "hive_server": "hiveserver2.test.myorg.com",
+    "hive_port": "10000"
   }]
 }
 ```
 The two environments in the config file above shows the minimum config you need
 for each environment. 
+
+If you want to let cobra-policytool to set policies or tags on hdfs paths corresponding
+to the Hive tables you manage you must also point out your hive server:
+```
+{"environments": [ 
+  {
+    "name": "prod",
+    "atlas_api_url": "http://atlas.prod.myorg.com:21000/api/atlas",
+    "ranger_api_url": "http://ranger.prod.myorg.com:6080",
+    "hive_server": "hiveserver2.prod.myorg.com",
+    "hive_port": "10000"
+  }]
+}
+``` 
 
 In ranger_policies.json you can refer to variables. These can be defined in a variables section
 for each environment. This makes our policy definitions very powerful and easy to use the same
@@ -42,6 +61,8 @@ file for different setups. In the following example we have defined three enviro
     "name": "prod",
     "atlas_api_url": "http://atlas.prod.host:21000/api/atlas",
     "ranger_api_url": "http://ranger.prod.host:6080",
+    "hive_server": "hiveserver2.prod.myorg.com",
+    "hive_port": "10000"
     "variables": [
         { "name": "installation",
           "value": "prod"}
@@ -50,6 +71,8 @@ file for different setups. In the following example we have defined three enviro
     "name": "autotest",
     "atlas_api_url": "http://atlas.test.host:21000/api/atlas",
     "ranger_api_url": "http://ranger.test.host:6080",
+    "hive_server": "hiveserver2.test.myorg.com",
+    "hive_port": "10000"
     "variables": [
       { "name": "installation",
         "value": "test"}
@@ -58,6 +81,8 @@ file for different setups. In the following example we have defined three enviro
     "name": "misctest",
     "atlas_api_url": "http://atlas.test.host:21000/api/atlas",
     "ranger_api_url": "http://ranger.test.host:6080",
+    "hive_server": "hiveserver2.test.myorg.com",
+    "hive_port": "10000"
     "variables": [
       { "name": "installation",
         "value": "test"}
@@ -68,7 +93,7 @@ file for different setups. In the following example we have defined three enviro
 ```
 
 Introducing the variable `installation` gives us the possibility to have one variable that defines meaning
-per cluster. This is useful for instance for services in the policy file, both "autotest" and "misctest" will 
-have the same services. If we prefix or suffix our service name with prod and test respectively we can use
+per cluster. One useful example of this is if you have one hadoop cluster you run in multitenancy mood and
+have several different environments. If we prefix or suffix our service name with prod and test respectively we can use
 the installation variable in our policy file. You can see how this is done in our 
 [example file](../example/ranger_policies.json).

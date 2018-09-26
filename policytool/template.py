@@ -2,6 +2,7 @@ import re
 
 pattern = re.compile("\$\{(.*?)\}")
 
+
 def apply_context(data, context):
     """
     :param data: Python data from JSON.
@@ -21,6 +22,7 @@ def apply_context(data, context):
     else:
         return data
 
+
 class Context:
     def __init__(self, env_list=[]):
         if isinstance(env_list, dict):
@@ -34,6 +36,13 @@ class Context:
                 return value
         raise TemplateError("No value for template variable {}".format(key))
 
+    def has_key(self, key):
+        for env in self.env_list:
+            value = env.has_key(key)
+            if value:
+                return True
+        return False
+
     def extend(self, env):
         return Context([env] + self.env_list)
 
@@ -41,5 +50,6 @@ class Context:
 class TemplateError(Exception):
     def __init__(self, message):
         self.message = message
+
     def __str__(self):
         return repr(self.message)

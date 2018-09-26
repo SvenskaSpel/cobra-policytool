@@ -30,7 +30,7 @@ class PyTest(TestCommand):
 
 setup(
     name="cobra-policytool",
-    version="1.0.3",
+    version="1.1.0",
     author="Magnus Runesson",
     author_email="Magnus.Runesson@svenskaspel.se",
     description="Tool for manage Hadoop access using Apache Atlas and Ranger.",
@@ -47,7 +47,9 @@ setup(
     install_requires=[
         'requests>=2.18.4,<2.19',
         'requests-kerberos',
-        'click'],
+        'click',
+        'pyhive',
+        'thrift'],
     tests_require=['pytest',
                    'nose',
                    'mock'],
