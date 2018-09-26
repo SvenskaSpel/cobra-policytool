@@ -1,7 +1,7 @@
 import unittest
 from mock import MagicMock
 
-import hive
+from policytool import hive
 
 
 class _CursorMock:

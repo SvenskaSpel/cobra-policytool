@@ -1,6 +1,6 @@
 import unittest
 
-import policyutil
+from policytool import policyutil
 
 
 class TestValidatePolicy(unittest.TestCase):
