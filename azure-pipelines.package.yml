@@ -20,7 +20,7 @@ jobs:
       versionSpec: '$(python.version)'
       architecture: 'x64'
 
-  - script: sudo apt-get -y install libkrb5-dev
+  - script: sudo apt-get -y install libkrb5-dev libsasl2-dev
     displayName: 'Install ubuntu packages.'
 
   - script: python -m pip install --upgrade pip setuptools wheel && python setup.py install
