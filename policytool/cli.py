@@ -32,10 +32,10 @@ def cli():
     pass
 
 
-def _tags_to_atlas(srcdir, environment, hdfs, retry, verbose, config):
+def _tags_to_atlas(srcdir, environment, hdfs, retry, verbose, config, tabletagfile, columntagfile):
     conf = JSONPropertiesFile(config).get(environment)
-    table_file = os.path.join(srcdir, 'table_tags.csv')
-    column_file = os.path.join(srcdir, 'column_tags.csv')
+    table_file = os.path.join(srcdir, tabletagfile)
+    column_file = os.path.join(srcdir, columntagfile)
     missing_files = _missing_files([table_file, column_file])
     if len(missing_files) != 0:
         print("Following files are missing: " + ", ".join(missing_files))
@@ -78,14 +78,16 @@ def _tags_to_atlas(srcdir, environment, hdfs, retry, verbose, config):
 @click.option('-r', '--retry', help='Retry on fail. Number of retries is controlled by \'retries\' in config.', count=True)
 @click.option('-v', '--verbose', help='Provide verbose output', count=True)
 @click.option('-c', '--config', help='Config file', type=click.Path(exists=True))
-def tags_to_atlas(srcdir, environment, hdfs, retry, verbose, config):
-    _tags_to_atlas(srcdir, environment, hdfs, retry, verbose, config)
+@click.option('--tabletagfile', help='The source file for table tags file', default='table_tags.csv')
+@click.option('--columntagfile', help='The source file for column tags file', default='column_tags.csv')
+def tags_to_atlas(srcdir, environment, hdfs, retry, verbose, config, tabletagfile, columntagfile):
+    _tags_to_atlas(srcdir, environment, hdfs, retry, verbose, config, tabletagfile, columntagfile)
 
 
-def _rules_to_ranger_cmd(srcdir, project_name, environment, config, verbose, dryrun):
+def _rules_to_ranger_cmd(srcdir, project_name, environment, config, verbose, dryrun, tabletagfile, columntagfile):
     conf = JSONPropertiesFile(config).get(environment)
-    table_file = os.path.join(srcdir, 'table_tags.csv')
-    column_file = os.path.join(srcdir, 'column_tags.csv')
+    table_file = os.path.join(srcdir, tabletagfile)
+    column_file = os.path.join(srcdir, columntagfile)
     policy_file = os.path.join(srcdir, 'ranger_policies.json')
     missing_files = _missing_files([table_file, column_file, policy_file])
     if len(missing_files) != 0:
@@ -136,14 +138,16 @@ def _rules_to_ranger_cmd(srcdir, project_name, environment, config, verbose, dry
 @click.option('-c', '--config', help='Config file', type=click.Path(exists=True))
 @click.option('-v', '--verbose', help='Provide verbose output', count=True)
 @click.option('--dryrun', help='Show commands, but do not update.', is_flag=True)
-def rules_to_ranger_cmd(srcdir, project_name, environment, config, verbose, dryrun):
-    _rules_to_ranger_cmd(srcdir, project_name, environment, config, verbose, dryrun)
+@click.option('--tabletagfile', help='The source file for table tags file', default='table_tags.csv')
+@click.option('--columntagfile', help='The source file for column tags file', default='column_tags.csv')
+def rules_to_ranger_cmd(srcdir, project_name, environment, config, verbose, dryrun, tabletagfile, columntagfile):
+    _rules_to_ranger_cmd(srcdir, project_name, environment, config, verbose, dryrun, tabletagfile, columntagfile)
 
 
-def _audit(srcdir, environment, config):
+def _audit(srcdir, environment, config, tabletagfile, columntagfile):
     conf = JSONPropertiesFile(config).get(environment)
-    table_file = os.path.join(srcdir, 'table_tags.csv')
-    column_file = os.path.join(srcdir, 'column_tags.csv')
+    table_file = os.path.join(srcdir, tabletagfile)
+    column_file = os.path.join(srcdir, columntagfile)
     missing_files = _missing_files([table_file, column_file])
     if len(missing_files) != 0:
         print("Following files are missing: " ", ".join(missing_files))
@@ -217,8 +221,10 @@ It includes differences between source files and Atlas.")
 @click.option('-s', '--srcdir', help='The schema for the generated table', default='src/main/tags')
 @click.option('-e', '--environment', help='Destination environment', required=True)
 @click.option('-c', '--config', help='Config file', type=click.Path(exists=True))
-def audit(srcdir, environment, config):
-    _audit(srcdir, environment, config)
+@click.option('--tabletagfile', help='The source file for table tags file', default='table_tags.csv')
+@click.option('--columntagfile', help='The source file for column tags file', default='column_tags.csv')
+def audit(srcdir, environment, config, tabletagfile, columntagfile):
+    _audit(srcdir, environment, config, tabletagfile, columntagfile)
 
 
 if __name__ == '__main__':
