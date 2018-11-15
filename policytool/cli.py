@@ -84,11 +84,11 @@ def tags_to_atlas(srcdir, environment, hdfs, retry, verbose, config, tabletagfil
     _tags_to_atlas(srcdir, environment, hdfs, retry, verbose, config, tabletagfile, columntagfile)
 
 
-def _rules_to_ranger_cmd(srcdir, project_name, environment, config, verbose, dryrun, tabletagfile, columntagfile):
+def _rules_to_ranger_cmd(srcdir, project_name, environment, config, verbose, dryrun, tabletagfile, columntagfile, policyfile):
     conf = JSONPropertiesFile(config).get(environment)
     table_file = os.path.join(srcdir, tabletagfile)
     column_file = os.path.join(srcdir, columntagfile)
-    policy_file = os.path.join(srcdir, 'ranger_policies.json')
+    policy_file = os.path.join(srcdir, policyfile)
     missing_files = _missing_files([table_file, column_file, policy_file])
     if len(missing_files) != 0:
         print("Following files are missing: " ", ".join(missing_files))
@@ -140,8 +140,9 @@ def _rules_to_ranger_cmd(srcdir, project_name, environment, config, verbose, dry
 @click.option('--dryrun', help='Show commands, but do not update.', is_flag=True)
 @click.option('--tabletagfile', help='The source file for table tags file', default='table_tags.csv')
 @click.option('--columntagfile', help='The source file for column tags file', default='column_tags.csv')
-def rules_to_ranger_cmd(srcdir, project_name, environment, config, verbose, dryrun, tabletagfile, columntagfile):
-    _rules_to_ranger_cmd(srcdir, project_name, environment, config, verbose, dryrun, tabletagfile, columntagfile)
+@click.option('--policyfile', help='The source file for policy file', default='ranger_policies.json')
+def rules_to_ranger_cmd(srcdir, project_name, environment, config, verbose, dryrun, tabletagfile, columntagfile, policyfile):
+    _rules_to_ranger_cmd(srcdir, project_name, environment, config, verbose, dryrun, tabletagfile, columntagfile, policyfile)
 
 
 def _audit(srcdir, environment, config, tabletagfile, columntagfile):
