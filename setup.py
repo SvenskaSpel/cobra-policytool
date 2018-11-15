@@ -30,7 +30,7 @@ class PyTest(TestCommand):
 
 setup(
     name="cobra-policytool",
-    version="1.1.3",
+    version="1.1.4",
     author="Magnus Runesson",
     author_email="Magnus.Runesson@svenskaspel.se",
     description="Tool for manage Hadoop access using Apache Atlas and Ranger.",
