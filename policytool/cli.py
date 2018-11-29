@@ -5,6 +5,7 @@ from click import ClickException
 from requests_kerberos import HTTPKerberosAuth
 import atlas
 import hive
+import policycache
 import tagsync
 import ranger
 import rangersync
@@ -226,6 +227,23 @@ It includes differences between source files and Atlas.")
 @click.option('--columntagfile', help='The source file for column tags file', default='column_tags.csv')
 def audit(srcdir, environment, config, tabletagfile, columntagfile):
     _audit(srcdir, environment, config, tabletagfile, columntagfile)
+
+
+@cli.command("policy_cache_sync", help="Reads a policy cache file copied from hive sercer and"
+                                       "set all tags in it in Atlas. Useful when you tagstore"
+                                       "in Ranger is out of sync with Atlas.")
+@click.option('-e', '--environment',
+              help='Destination environment. Used to get Atlas and ranger config.', required=True)
+@click.option('-c', '--config', help='Config file', type=click.Path(exists=True))
+@click.option('--policycachefile', help='Policy cache file for tags copied from Hives policy cache.', required=True)
+@click.option('--tabletagfile', help='Destination file for table tags')
+@click.option('--columntagfile', help='Destination file for column tags')
+@click.option('--hdfs/--no-hdfs',
+              help='Set tags on hive tables corresponding hdfs directory. No effect if tagfiles are created',
+              default=False)
+def policy_cache_sync(environment, config, policycachefile, tabletagfile, columntagfile, hdfs):
+    policycache.extract_policy_cache(
+        JSONPropertiesFile(config).get(environment), policycache, tabletagfile, columntagfile, hdfs)
 
 
 if __name__ == '__main__':
