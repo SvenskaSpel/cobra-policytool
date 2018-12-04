@@ -43,7 +43,7 @@ class Client:
             cursor = self._connection().cursor()
             cursor.execute("describe formatted {}.{}".format(database, table))
             for key, value, _ in cursor.fetchall():
-                if key.strip() == u'Location:':
+                if key is not None and key.strip() == u'Location:':
                     return value.strip()
             # If we not find 'Location:', its probably a view.
             return None
