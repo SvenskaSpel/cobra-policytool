@@ -15,7 +15,7 @@ class TestPolicyCacheClassMethods(unittest.TestCase):
                                        {u'isExcludes': False, u'values': [u'db_name'], u'isRecursive': False}}
              }]}
         result = PolicyCache._extract_resources(indata, 'table')
-        self.assertEqual(result, {'db_name.table_name': 109410})
+        self.assertEqual(result, {('db_name', 'table_name'): 109410})
 
     def test__extract_resources_for_no_table_object(self):
         indata = {'serviceResources': [
