@@ -1,7 +1,7 @@
 import unittest
 
-import policycache
-from policycache import PolicyCache
+from policytool import policycache
+from policytool.policycache import PolicyCache
 
 
 class TestPolicyCacheClassMethods(unittest.TestCase):
@@ -54,5 +54,3 @@ class TestPolicyCache(unittest.TestCase):
         policy_cache = PolicyCache(indata)
         tags = policy_cache._tags_for_resource("109410")
         self.assertEqual(tags, ['mytag', 'life'])
-
- 
