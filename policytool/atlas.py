@@ -40,7 +40,7 @@ class Client:
             criteria = {
                 'attributeName': 'qualifiedName',
                 'operator': 'STARTSWITH' if n == 0 else 'CONTAINS',
-                'attributeValue': v
+                'attributeValue': v + "."
             }
             n += 1
             criterion.append(criteria)
