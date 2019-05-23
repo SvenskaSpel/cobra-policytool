@@ -24,13 +24,13 @@ class PyTest(TestCommand):
     def run_tests(self):
         #import here, cause outside the eggs aren't loaded
         import pytest
-        errno = pytest.main(self.pytest_args)
+        errno = pytest.main((self.pytest_args).split())
         sys.exit(errno)
 
 
 setup(
     name="cobra-policytool",
-    version="1.1.4",
+    version="1.1.5",
     author="Magnus Runesson",
     author_email="Magnus.Runesson@svenskaspel.se",
     description="Tool for manage Hadoop access using Apache Atlas and Ranger.",
