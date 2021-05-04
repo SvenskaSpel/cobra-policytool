@@ -1,5 +1,9 @@
 # Cobra-policytool
 
+# Project have been dicontinued!
+
+
+
 Cobra-policytool is a tool to ease management of
 [Apache Ranger](https://ranger.apache.org/) together with tags
 in [Apache Atlas](https://atlas.apache.org/). These tools
